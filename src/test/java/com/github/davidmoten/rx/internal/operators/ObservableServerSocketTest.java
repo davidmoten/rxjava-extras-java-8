@@ -21,7 +21,7 @@ import org.junit.Test;
 
 import com.github.davidmoten.junit.Asserts;
 import com.github.davidmoten.rx.Actions;
-import com.github.davidmoten.rx.Obs2;
+import com.github.davidmoten.rx.IO;
 
 import rx.Observable;
 import rx.functions.Action2;
@@ -67,7 +67,7 @@ public final class ObservableServerSocketTest {
 
         TestSubscriber<Object> ts = TestSubscriber.create();
         try (ServerSocket socket = new ServerSocket(PORT)) {
-            Obs2.serverSocket(PORT, 10, TimeUnit.SECONDS, 5).subscribe(ts);
+            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 5).subscribe(ts);
             ts.assertNoValues();
             ts.assertNotCompleted();
             ts.assertTerminalEvent();
@@ -81,8 +81,8 @@ public final class ObservableServerSocketTest {
     }
 
     @Test
-    public void isUtilityClassObs2() {
-        Asserts.assertIsUtilityClass(Obs2.class);
+    public void isUtilityClassIO() {
+        Asserts.assertIsUtilityClass(IO.class);
     }
 
     @Test
@@ -122,7 +122,7 @@ public final class ObservableServerSocketTest {
         TestSubscriber<Object> ts = TestSubscriber.create();
         AtomicReference<byte[]> result = new AtomicReference<byte[]>();
         try {
-            Obs2.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize) //
+            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize) //
                     .groupBy(cn -> cn.id()) //
                     .flatMap(g -> g //
                             .doOnNext(cn -> System.out.println("cn=" + cn)) //

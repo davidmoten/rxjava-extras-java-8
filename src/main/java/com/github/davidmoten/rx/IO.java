@@ -6,11 +6,11 @@ import com.github.davidmoten.rx.internal.operators.ObservableServerSocket;
 
 import rx.Observable;
 
-public final class Obs2 {
+public final class IO {
 
     private static final int DEFAULT_BUFFER_SIZE = 8192;
 
-    private Obs2() {
+    private IO() {
         // prevent instantiation
     }
 
