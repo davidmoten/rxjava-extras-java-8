@@ -31,6 +31,7 @@ Obs2.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
     // handle each connection as a separate stream
     .flatMap(g -> 
         // g is the stream of notifications for one connection 
+        // note that g.getKey() will return the connection id
         g.map(cn -> cn.notification())
          // turn into a stream of byte[]
          .<byte[]> dematerialize()
