@@ -24,6 +24,7 @@ Action2<ByteArrayOutputStream, byte[]> collector = (bos, bytes) -> {
     };
 int PORT = 12345;
 long timeoutSeconds = 10;
+// will use a buffer of 8192 bytes by default
 Obs2.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
     // group by connection id
     .groupBy(cn -> cn.id())
