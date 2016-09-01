@@ -14,6 +14,7 @@ Usage:
 The example below emits the byte arrays delivered by TCP push to a server socket `localhost:12345` to the console. If a connection drops out then the bytes received are not emitted.
 
 ```java
+//accumulates bytes into a single byte array 
 Action2<ByteArrayOutputStream, byte[]> collector = (bos, bytes) -> {
         try {
             bos.write(bytes);
