@@ -11,7 +11,7 @@
 
 Usage:
 
-The example below emits the byte arrays delivered by TCP push to a server socket localhost:12345 to the console. If a connection drops out then the bytes received are not emitted.
+The example below emits the byte arrays delivered by TCP push to a server socket `localhost:12345` to the console. If a connection drops out then the bytes received are not emitted.
 
 ```java
 Action2<ByteArrayOutputStream, byte[]> collector = (bos, bytes) -> {
