@@ -31,8 +31,18 @@ public final class SourceServerSocket {
 
     public static Observable<ConnectionNotification> create(final int port, final long timeout,
             final TimeUnit unit, final int bufferSize) {
+        Func0<AsynchronousServerSocketChannel> serverSocketFactory = createServerSocketFactory(
+                port);
+        Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>> serverSocketObservable = createObservable(
+                timeout, unit, bufferSize);
+        // Observable.using handles closing of stuff on termination or
+        // unsubscription
+        return Observable.using(serverSocketFactory, serverSocketObservable, closer());
+    }
 
-        Func0<AsynchronousServerSocketChannel> serverSocketCreator = new Func0<AsynchronousServerSocketChannel>() {
+    private static Func0<AsynchronousServerSocketChannel> createServerSocketFactory(
+            final int port) {
+        return new Func0<AsynchronousServerSocketChannel>() {
 
             @Override
             public AsynchronousServerSocketChannel call() {
@@ -43,7 +53,11 @@ public final class SourceServerSocket {
                 }
             }
         };
-        Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>> serverSocketObservable = new Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>>() {
+    }
+
+    private static Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>> createObservable(
+            final long timeout, final TimeUnit unit, final int bufferSize) {
+        return new Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>>() {
 
             @Override
             public Observable<ConnectionNotification> call(
@@ -58,19 +72,6 @@ public final class SourceServerSocket {
                     }
                 };
                 return Observable.fromAsync(emitterAction, BackpressureMode.BUFFER);
-            }
-        };
-        Action1<Closeable> serverSocketDisposer = closer();
-        return Observable.using(serverSocketCreator, serverSocketObservable, serverSocketDisposer);
-    }
-
-    // Visible for testing
-    static Action1<Closeable> closer() {
-        return c -> {
-            try {
-                c.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
         };
     }
@@ -153,6 +154,17 @@ public final class SourceServerSocket {
             }
         }
 
+    }
+
+    // Visible for testing
+    static Action1<Closeable> closer() {
+        return c -> {
+            try {
+                c.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
     }
 
 }
