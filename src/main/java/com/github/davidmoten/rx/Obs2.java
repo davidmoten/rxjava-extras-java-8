@@ -10,7 +10,7 @@ public final class Obs2 {
 
     public static Observable<ConnectionNotification> serverSocket(int port, long timeout,
             TimeUnit unit) {
-        return SourceServerSocket.create(port, timeout, unit);
+        return SourceServerSocket.create(port, timeout, unit, 8192);
     }
 
 }

@@ -25,7 +25,7 @@ import rx.functions.Func1;
 public class SourceServerSocket {
 
     public static Observable<ConnectionNotification> create(final int port, final long timeout,
-            final TimeUnit unit) {
+            final TimeUnit unit, final int bufferSize) {
         Func0<AsynchronousServerSocketChannel> serverSocketCreator = new Func0<AsynchronousServerSocketChannel>() {
 
             @Override
@@ -46,7 +46,8 @@ public class SourceServerSocket {
 
                     @Override
                     public void call(AsyncEmitter<ConnectionNotification> emitter) {
-                        channel.accept(null, new Handler(channel, emitter, unit.toMillis(timeout)));
+                        channel.accept(null,
+                                new Handler(channel, emitter, unit.toMillis(timeout), bufferSize));
 
                     }
                 };
@@ -73,14 +74,16 @@ public class SourceServerSocket {
         private final AsynchronousServerSocketChannel serverSocketChannel;
         private final AsyncEmitter<ConnectionNotification> emitter;
         private final long timeoutMs;
+        private final int bufferSize;
 
         private volatile boolean keepGoing = true;
 
         public Handler(AsynchronousServerSocketChannel serverSocketChannel,
-                AsyncEmitter<ConnectionNotification> emitter, long timeoutMs) {
+                AsyncEmitter<ConnectionNotification> emitter, long timeoutMs, int bufferSize) {
             this.serverSocketChannel = serverSocketChannel;
             this.emitter = emitter;
             this.timeoutMs = timeoutMs;
+            this.bufferSize = bufferSize;
             emitter.setCancellation(new Cancellable() {
 
                 @Override
@@ -95,7 +98,7 @@ public class SourceServerSocket {
             // listen for new connection
             serverSocketChannel.accept(null, this);
             // Allocate a byte buffer to read from the client
-            ByteBuffer buffer = ByteBuffer.allocate(4096);
+            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
             String id = UUID.randomUUID().toString();
             try {
                 int bytesRead;
