@@ -80,7 +80,7 @@
         <connection>scm:git:https://github.com/davidmoten/rxjava-extras-java-8.git</connection>
         <developerConnection>scm:git:https://github.com/davidmoten/rxjava-extras-java-8.git</developerConnection>
         <url>scm:git:https://github.com:davidmoten/rxjava-extras-java-8.git</url>
-        <tag>0.7.1-RC6</tag>
+        <tag>0.1</tag>
     </scm>
 
     <dependencies>
@@ -101,13 +101,6 @@
             <groupId>com.github.davidmoten</groupId>
             <artifactId>rxjava-slf4j</artifactId>
             <version>0.5.4</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.mapdb</groupId>
-            <artifactId>thread-weaver</artifactId>
-            <version>3.0.mapdb</version>
             <scope>test</scope>
         </dependency>
 
@@ -140,31 +133,10 @@
         </dependency>
 
         <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>2.0.31-beta</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-core</artifactId>
             <version>${jmh.version}</version>
             <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>19.0</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.esotericsoftware</groupId>
-            <artifactId>kryo</artifactId>
-            <version>3.0.3</version>
-            <optional>true</optional>
         </dependency>
 
         <dependency>

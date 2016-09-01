@@ -1,5 +1,6 @@
 package com.github.davidmoten.rx.internal.operators;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -22,10 +23,15 @@ import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func1;
 
-public class SourceServerSocket {
+public final class SourceServerSocket {
+
+    private SourceServerSocket() {
+        // prevent instantiation
+    }
 
     public static Observable<ConnectionNotification> create(final int port, final long timeout,
             final TimeUnit unit, final int bufferSize) {
+
         Func0<AsynchronousServerSocketChannel> serverSocketCreator = new Func0<AsynchronousServerSocketChannel>() {
 
             @Override
@@ -54,18 +60,19 @@ public class SourceServerSocket {
                 return Observable.fromAsync(emitterAction, BackpressureMode.BUFFER);
             }
         };
-        Action1<AsynchronousServerSocketChannel> serverSocketDisposer = new Action1<AsynchronousServerSocketChannel>() {
+        Action1<Closeable> serverSocketDisposer = closer();
+        return Observable.using(serverSocketCreator, serverSocketObservable, serverSocketDisposer);
+    }
 
-            @Override
-            public void call(AsynchronousServerSocketChannel channel) {
-                try {
-                    channel.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+    // Visible for testing
+    static Action1<Closeable> closer() {
+        return c -> {
+            try {
+                c.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         };
-        return Observable.using(serverSocketCreator, serverSocketObservable, serverSocketDisposer);
     }
 
     private static final class Handler
@@ -76,7 +83,7 @@ public class SourceServerSocket {
         private final long timeoutMs;
         private final int bufferSize;
 
-        private volatile boolean keepGoing = true;
+        private volatile boolean done = false;
 
         public Handler(AsynchronousServerSocketChannel serverSocketChannel,
                 AsyncEmitter<ConnectionNotification> emitter, long timeoutMs, int bufferSize) {
@@ -88,7 +95,7 @@ public class SourceServerSocket {
 
                 @Override
                 public void cancel() throws Exception {
-                    keepGoing = false;
+                    done = false;
                 }
             });
         }
@@ -102,37 +109,35 @@ public class SourceServerSocket {
             String id = UUID.randomUUID().toString();
             try {
                 int bytesRead;
-                while (keepGoing && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
+                while (!done && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
                         TimeUnit.MILLISECONDS)) != -1) {
-
-                    // Make sure that we have data to read
-                    if (buffer.position() > 2) {
-
-                        // Make the buffer ready to read
-                        buffer.flip();
-
-                        // copy the current buffer to a byte array
-                        byte[] chunk = new byte[bytesRead];
-                        buffer.get(chunk, 0, bytesRead);
-
-                        // emit the chunk
-                        emitter.onNext(
-                                new ConnectionNotification(id, Notification.createOnNext(chunk)));
-
-                        // Make the buffer ready to write
-                        buffer.clear();
+                    // check the value of done again because the read may have
+                    // taken some time (close to the timeout)
+                    if (done) {
+                        return;
                     }
+
+                    // Make the buffer ready to read
+                    buffer.flip();
+
+                    // copy the current buffer to a byte array
+                    byte[] chunk = new byte[bytesRead];
+                    buffer.get(chunk, 0, bytesRead);
+
+                    // emit the chunk
+                    emitter.onNext(
+                            new ConnectionNotification(id, Notification.createOnNext(chunk)));
+
+                    // Make the buffer ready to write
+                    buffer.clear();
                 }
-                emitter.onNext(
-                        new ConnectionNotification(id, Notification.<byte[]> createOnCompleted()));
-            } catch (InterruptedException e) {
-                error(id, e);
-            } catch (ExecutionException e) {
-                error(id, e);
-            } catch (TimeoutException e) {
+                if (!done) {
+                    emitter.onNext(new ConnectionNotification(id,
+                            Notification.<byte[]> createOnCompleted()));
+                }
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 error(id, e);
             }
-
         }
 
         @Override
@@ -142,7 +147,10 @@ public class SourceServerSocket {
         }
 
         private void error(String id, Throwable e) {
-            emitter.onNext(new ConnectionNotification(id, Notification.<byte[]> createOnError(e)));
+            if (!done) {
+                emitter.onNext(
+                        new ConnectionNotification(id, Notification.<byte[]> createOnError(e)));
+            }
         }
 
     }

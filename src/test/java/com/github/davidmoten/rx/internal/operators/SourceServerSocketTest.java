@@ -1,34 +1,161 @@
 package com.github.davidmoten.rx.internal.operators;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.BindException;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.Assert;
 import org.junit.Test;
 
+import com.github.davidmoten.junit.Asserts;
+import com.github.davidmoten.rx.Actions;
 import com.github.davidmoten.rx.Obs2;
 
 import rx.Observable;
+import rx.functions.Action2;
+import rx.observers.TestSubscriber;
 
 public final class SourceServerSocketTest {
 
+    private static final int PORT = 12345;
+    private static final String TEXT = "hello there";
+
     @Test
-    public void serverSocketReadsTcpPush()
+    public void serverSocketReadsTcpPushWhenBufferIsSmallerThanInput()
             throws UnknownHostException, IOException, InterruptedException {
-        Obs2.serverSocket(12345, 10, TimeUnit.SECONDS) //
-                .groupBy(cn -> cn.id()) //
-                .flatMap(g -> g.map(cn -> cn.notification()).<byte[]> dematerialize()
-                        .doOnNext(bytes -> System.out.println(new String(bytes))) //
-                        .onErrorResumeNext(Observable.empty()))
-                .subscribe();
-        Socket socket = new Socket("localhost", 12345);
-        OutputStream out = socket.getOutputStream();
-        out.write("hello there".getBytes());
-        out.close();
-        socket.close();
-        Thread.sleep(10000);
+        checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, 4);
     }
+
+    @Test
+    public void serverSocketReadsTcpPushWhenBufferIsBiggerThanInput()
+            throws UnknownHostException, IOException, InterruptedException {
+        checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, 8192);
+    }
+
+    @Test
+    public void serverSocketReadsTcpPushWhenBufferIsSameSizeAsInput()
+            throws UnknownHostException, IOException, InterruptedException {
+        checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, TEXT.length());
+    }
+
+    @Test
+    public void serverSocketReadsTcpPushWhenInputIsEmpty()
+            throws UnknownHostException, IOException, InterruptedException {
+        checkServerSocketReadsTcpPushWhenBufferSizeIs("", 4);
+    }
+
+    @Test
+    public void serverSocketReadsTcpPushWhenInputIsOneCharacter()
+            throws UnknownHostException, IOException, InterruptedException {
+        checkServerSocketReadsTcpPushWhenBufferSizeIs("a", 4);
+    }
+
+    @Test
+    public void errorEmittedIfServerSocketBusy() throws IOException {
+
+        TestSubscriber<Object> ts = TestSubscriber.create();
+        try (ServerSocket socket = new ServerSocket(PORT)) {
+            Obs2.serverSocket(PORT, 10, TimeUnit.SECONDS, 5).subscribe(ts);
+            ts.assertNoValues();
+            ts.assertNotCompleted();
+            ts.assertTerminalEvent();
+            assertTrue(ts.getOnErrorEvents().get(0).getCause() instanceof BindException);
+        }
+    }
+
+    @Test
+    public void isUtilityClass() {
+        Asserts.assertIsUtilityClass(SourceServerSocket.class);
+    }
+
+    @Test
+    public void isUtilityClassObs2() {
+        Asserts.assertIsUtilityClass(Obs2.class);
+    }
+
+    @Test
+    public void testCloserWhenDoesNotThrow() {
+        AtomicBoolean called = new AtomicBoolean();
+        Closeable c = new Closeable() {
+
+            @Override
+            public void close() throws IOException {
+                called.set(true);
+            }
+        };
+        SourceServerSocket.closer().call(c);
+        assertTrue(called.get());
+    }
+
+    @Test
+    public void testCloserWhenThrows() {
+        IOException ex = new IOException();
+        Closeable c = new Closeable() {
+
+            @Override
+            public void close() throws IOException {
+                throw ex;
+            }
+        };
+        try {
+            SourceServerSocket.closer().call(c);
+            Assert.fail();
+        } catch (RuntimeException e) {
+            assertTrue(ex == e.getCause());
+        }
+    }
+
+    private void checkServerSocketReadsTcpPushWhenBufferSizeIs(String text, int bufferSize)
+            throws UnknownHostException, IOException, InterruptedException {
+        TestSubscriber<Object> ts = TestSubscriber.create();
+        AtomicReference<byte[]> result = new AtomicReference<byte[]>();
+        try {
+            Obs2.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize) //
+                    .groupBy(cn -> cn.id()) //
+                    .flatMap(g -> g //
+                            .doOnNext(cn -> System.out.println("cn=" + cn)) //
+                            .map(cn -> cn.notification()) //
+                            .<byte[]> dematerialize() //
+                            .collect(() -> new ByteArrayOutputStream(), COLLECTOR) //
+                            .map(bos -> bos.toByteArray()) //
+                            .doOnNext(Actions.setAtomic(result)) //
+                            .doOnNext(bytes -> System.out.println(
+                                    Thread.currentThread().getName() + ": " + new String(bytes))) //
+                            .onErrorResumeNext(Observable.empty()))
+                    .subscribe(ts);
+            Socket socket = new Socket("localhost", 12345);
+            OutputStream out = socket.getOutputStream();
+            out.write(text.getBytes());
+            out.close();
+            socket.close();
+            Thread.sleep(1000);
+            assertEquals(text, new String(result.get(), StandardCharsets.UTF_8));
+        } finally {
+            // will close server socket
+            ts.unsubscribe();
+        }
+    }
+
+    private static final Action2<ByteArrayOutputStream, byte[]> COLLECTOR = (bos, bytes) -> {
+        try {
+            bos.write(bytes);
+        } catch (IOException e)
+
+        {
+            throw new RuntimeException(e);
+        }
+    };
 
 }
