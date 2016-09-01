@@ -28,6 +28,7 @@ long timeoutSeconds = 10;
 Obs2.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
     // group by connection id
     .groupBy(cn -> cn.id())
+    // handle each connection as a separate stream
     .flatMap(g -> 
         // g is the stream of notifications for one connection 
         g.map(cn -> cn.notification())
