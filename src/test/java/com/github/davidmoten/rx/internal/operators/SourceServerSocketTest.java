@@ -151,9 +151,7 @@ public final class SourceServerSocketTest {
     private static final Action2<ByteArrayOutputStream, byte[]> COLLECTOR = (bos, bytes) -> {
         try {
             bos.write(bytes);
-        } catch (IOException e)
-
-        {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     };
