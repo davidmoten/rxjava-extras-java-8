@@ -16,16 +16,28 @@ Action2<ByteArrayOutputStream, byte[]> collector = (bos, bytes) -> {
             throw new RuntimeException(e);
         }
     };
-
-Obs2.serverSocket(12345, 10, TimeUnit.SECONDS)
+int PORT = 12345;
+long timeoutSeconds = 10;
+Obs2.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
     .groupBy(cn -> cn.id())
     .flatMap(g -> 
+        // g is the stream of notifications for one connection 
         g.map(cn -> cn.notification())
+         // turn into a stream of byte[]
          .<byte[]> dematerialize()
+         // accumulate the byte[] into one byte[]
          .collect(() -> new ByteArrayOutputStream(), collector)
+         // return the accumulated byte[]
          .map(bos -> bos.toByteArray())
-         .doOnNext(bytes -> System.out.println(new String(bytes)))
-         .onErrorResumeNext(Observable.empty()))
+         // if any error occurred with the stream then emit nothing
+         // and complete this connections stream (which will release its
+         // entry from the internal map maintained by groupBy). 
+         // We don't emit an error because it would should down all 
+         // other connections as well. 
+         .onErrorResumeNext(Observable.empty())
+         // print the byte array message for one connection
+         // to the console as a string
+         .doOnNext(bytes -> System.out.println(new String(bytes))))
     .subscribe(subscriber);
 
 // a call to unsubscribe will cancel

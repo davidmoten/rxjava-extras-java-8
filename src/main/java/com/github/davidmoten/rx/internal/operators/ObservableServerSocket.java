@@ -23,9 +23,9 @@ import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func1;
 
-public final class SourceServerSocket {
+public final class ObservableServerSocket {
 
-    private SourceServerSocket() {
+    private ObservableServerSocket() {
         // prevent instantiation
     }
 

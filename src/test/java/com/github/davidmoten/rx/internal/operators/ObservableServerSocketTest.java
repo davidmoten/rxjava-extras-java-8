@@ -27,7 +27,7 @@ import rx.Observable;
 import rx.functions.Action2;
 import rx.observers.TestSubscriber;
 
-public final class SourceServerSocketTest {
+public final class ObservableServerSocketTest {
 
     private static final int PORT = 12345;
     private static final String TEXT = "hello there";
@@ -77,7 +77,7 @@ public final class SourceServerSocketTest {
 
     @Test
     public void isUtilityClass() {
-        Asserts.assertIsUtilityClass(SourceServerSocket.class);
+        Asserts.assertIsUtilityClass(ObservableServerSocket.class);
     }
 
     @Test
@@ -95,7 +95,7 @@ public final class SourceServerSocketTest {
                 called.set(true);
             }
         };
-        SourceServerSocket.closer().call(c);
+        ObservableServerSocket.closer().call(c);
         assertTrue(called.get());
     }
 
@@ -110,7 +110,7 @@ public final class SourceServerSocketTest {
             }
         };
         try {
-            SourceServerSocket.closer().call(c);
+            ObservableServerSocket.closer().call(c);
             Assert.fail();
         } catch (RuntimeException e) {
             assertTrue(ex == e.getCause());
