@@ -3,7 +3,6 @@ package com.github.davidmoten.rx.internal.operators;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,10 +20,10 @@ import org.junit.Test;
 
 import com.github.davidmoten.junit.Asserts;
 import com.github.davidmoten.rx.Actions;
+import com.github.davidmoten.rx.Bytes;
 import com.github.davidmoten.rx.IO;
 
 import rx.Observable;
-import rx.functions.Action2;
 import rx.observers.TestSubscriber;
 
 public final class ObservableServerSocketTest {
@@ -128,8 +127,7 @@ public final class ObservableServerSocketTest {
                             .doOnNext(cn -> System.out.println("cn=" + cn)) //
                             .map(cn -> cn.notification()) //
                             .<byte[]> dematerialize() //
-                            .collect(() -> new ByteArrayOutputStream(), COLLECTOR) //
-                            .map(bos -> bos.toByteArray()) //
+                            .compose(Bytes.collect()) //
                             .doOnNext(Actions.setAtomic(result)) //
                             .doOnNext(bytes -> System.out.println(
                                     Thread.currentThread().getName() + ": " + new String(bytes))) //
@@ -147,13 +145,5 @@ public final class ObservableServerSocketTest {
             ts.unsubscribe();
         }
     }
-
-    private static final Action2<ByteArrayOutputStream, byte[]> COLLECTOR = (bos, bytes) -> {
-        try {
-            bos.write(bytes);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    };
 
 }

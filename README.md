@@ -14,15 +14,7 @@
 The example below emits the bytes delivered by each TCP connection to the server socket `localhost:12345` to the console as a string. If a connection drops out then the bytes received are not emitted.
 
 ```java
-//accumulates bytes into a single byte array 
-Action2<ByteArrayOutputStream, byte[]> collector = (bos, bytes) -> {
-        try {
-            bos.write(bytes);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    };
-int PORT = 12345;
+int port = 12345;
 long timeoutSeconds = 10;
 // will use a buffer of 8192 bytes by default
 IO.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
@@ -36,9 +28,7 @@ IO.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
          // turn into a stream of byte[]
          .<byte[]> dematerialize()
          // accumulate the byte[] into one byte[]
-         .collect(() -> new ByteArrayOutputStream(), collector)
-         // return the accumulated byte[]
-         .map(bos -> bos.toByteArray())
+         .transform(Bytes.collect()) 
          // if any error occurred with the stream then emit nothing
          // and complete this connections stream (which will release its
          // entry from the internal map maintained by groupBy). 
