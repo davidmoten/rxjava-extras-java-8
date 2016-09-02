@@ -8,6 +8,7 @@
 * `IO.serverSocket` - Uses NIO to listen on a server socket and emit the byte array chunks in an Observable stream (identified by a unique connection id)
 
 ##IO.serverSocket
+Built this functionality to support a somewhat bizarre legacy message delivery system. As the server doesn't communicate a response to the client at end of stream message delivery is not guaranteed.
 
 ###Usage
 
