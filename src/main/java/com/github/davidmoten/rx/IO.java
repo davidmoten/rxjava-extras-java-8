@@ -14,14 +14,10 @@ public final class IO {
         // prevent instantiation
     }
 
-    public static Observable<ConnectionNotification> serverSocket(int port, long timeout,
+    public static Observable<Observable<byte[]>> serverSocket(int port, long timeout,
             TimeUnit unit, int bufferSize) {
         return ObservableServerSocket.create(port, timeout, unit, bufferSize);
     }
 
-    public static Observable<ConnectionNotification> serverSocket(int port, long timeout,
-            TimeUnit unit) {
-        return serverSocket(port, timeout, unit, DEFAULT_BUFFER_SIZE);
-    }
 
 }

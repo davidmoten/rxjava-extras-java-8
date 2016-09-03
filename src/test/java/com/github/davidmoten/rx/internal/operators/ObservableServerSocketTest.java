@@ -122,11 +122,7 @@ public final class ObservableServerSocketTest {
         AtomicReference<byte[]> result = new AtomicReference<byte[]>();
         try {
             IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize) //
-                    .groupBy(cn -> cn.id()) //
                     .flatMap(g -> g //
-                            .doOnNext(cn -> System.out.println("cn=" + cn)) //
-                            .map(cn -> cn.notification()) //
-                            .<byte[]> dematerialize() //
                             .compose(Bytes.collect()) //
                             .doOnNext(Actions.setAtomic(result)) //
                             .doOnNext(bytes -> System.out.println(

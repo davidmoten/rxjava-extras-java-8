@@ -7,164 +7,219 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import com.github.davidmoten.rx.ConnectionNotification;
+import java.util.concurrent.atomic.AtomicReference;
 
 import rx.AsyncEmitter;
 import rx.AsyncEmitter.BackpressureMode;
-import rx.AsyncEmitter.Cancellable;
-import rx.Notification;
 import rx.Observable;
+import rx.Observable.OnSubscribe;
+import rx.Producer;
+import rx.Subscriber;
 import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func1;
 
 public final class ObservableServerSocket {
 
-    private ObservableServerSocket() {
-        // prevent instantiation
-    }
+	private ObservableServerSocket() {
+		// prevent instantiation
+	}
 
-    public static Observable<ConnectionNotification> create(final int port, final long timeout,
-            final TimeUnit unit, final int bufferSize) {
-        Func0<AsynchronousServerSocketChannel> serverSocketFactory = createServerSocketFactory(
-                port);
-        Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>> serverSocketObservable = createObservable(
-                timeout, unit, bufferSize);
-        // Observable.using handles closing of stuff on termination or
-        // unsubscription
-        return Observable.using(serverSocketFactory, serverSocketObservable, closer());
-    }
+	public static Observable<Observable<byte[]>> create(final int port, final long timeout, final TimeUnit unit,
+			final int bufferSize) {
+		Func0<AsynchronousServerSocketChannel> serverSocketFactory = createServerSocketFactory(port);
+		Func1<AsynchronousServerSocketChannel, Observable<Observable<byte[]>>> serverSocketObservable = serverSocketChannel -> Observable
+				.create(new MyOnSubscribe(serverSocketChannel, unit.toMillis(timeout), bufferSize));
+		// Observable.using handles closing of stuff on termination or
+		// unsubscription
+		return Observable.using(serverSocketFactory, serverSocketObservable, closer());
+	}
 
-    private static Func0<AsynchronousServerSocketChannel> createServerSocketFactory(
-            final int port) {
-        return new Func0<AsynchronousServerSocketChannel>() {
+	private static Func0<AsynchronousServerSocketChannel> createServerSocketFactory(final int port) {
+		return () -> {
+			try {
+				return AsynchronousServerSocketChannel.open().bind(new InetSocketAddress(port));
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		};
+	}
 
-            @Override
-            public AsynchronousServerSocketChannel call() {
-                try {
-                    return AsynchronousServerSocketChannel.open().bind(new InetSocketAddress(port));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-    }
+	private static final class MyOnSubscribe implements OnSubscribe<Observable<byte[]>> {
 
-    private static Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>> createObservable(
-            final long timeout, final TimeUnit unit, final int bufferSize) {
-        return new Func1<AsynchronousServerSocketChannel, Observable<ConnectionNotification>>() {
+		private final AsynchronousServerSocketChannel serverSocketChannel;
+		private final long timeoutMs;
+		private final int bufferSize;
 
-            @Override
-            public Observable<ConnectionNotification> call(
-                    final AsynchronousServerSocketChannel channel) {
-                Action1<AsyncEmitter<ConnectionNotification>> emitterAction = new Action1<AsyncEmitter<ConnectionNotification>>() {
+		MyOnSubscribe(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs, int bufferSize) {
+			this.serverSocketChannel = serverSocketChannel;
+			this.timeoutMs = timeoutMs;
+			this.bufferSize = bufferSize;
+		}
 
-                    @Override
-                    public void call(AsyncEmitter<ConnectionNotification> emitter) {
-                        channel.accept(null,
-                                new Handler(channel, emitter, unit.toMillis(timeout), bufferSize));
+		@Override
+		public void call(Subscriber<? super Observable<byte[]>> subscriber) {
+			subscriber.setProducer(new MyProducer(serverSocketChannel, timeoutMs, bufferSize, subscriber));
+		}
 
-                    }
-                };
-                return Observable.fromAsync(emitterAction, BackpressureMode.BUFFER);
-            }
-        };
-    }
+	}
 
-    private static final class Handler
-            implements CompletionHandler<AsynchronousSocketChannel, Void> {
+	private static final class MyProducer implements CompletionHandler<AsynchronousSocketChannel, Void>, Producer {
 
-        private final AsynchronousServerSocketChannel serverSocketChannel;
-        private final AsyncEmitter<ConnectionNotification> emitter;
-        private final long timeoutMs;
-        private final int bufferSize;
+		private final AsynchronousServerSocketChannel serverSocketChannel;
+		private final long timeoutMs;
+		private final int bufferSize;
+		private final Subscriber<? super Observable<byte[]>> subscriber;
 
-        private volatile boolean done = false;
+		public MyProducer(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs, int bufferSize,
+				Subscriber<? super Observable<byte[]>> subscriber) {
+			this.serverSocketChannel = serverSocketChannel;
+			this.timeoutMs = timeoutMs;
+			this.bufferSize = bufferSize;
+			this.subscriber = subscriber;
+		}
 
-        public Handler(AsynchronousServerSocketChannel serverSocketChannel,
-                AsyncEmitter<ConnectionNotification> emitter, long timeoutMs, int bufferSize) {
-            this.serverSocketChannel = serverSocketChannel;
-            this.emitter = emitter;
-            this.timeoutMs = timeoutMs;
-            this.bufferSize = bufferSize;
-            emitter.setCancellation(new Cancellable() {
+		private static final class State {
+			final boolean accepting;
+			final long requested;
 
-                @Override
-                public void cancel() throws Exception {
-                    done = false;
-                }
-            });
-        }
+			State(boolean accepting, long requested) {
+				this.accepting = accepting;
+				this.requested = requested;
+			}
 
-        @Override
-        public void completed(AsynchronousSocketChannel socketChannel, Void attachment) {
-            // listen for new connection
-            serverSocketChannel.accept(null, this);
-            // Allocate a byte buffer to read from the client
-            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
-            String id = UUID.randomUUID().toString();
-            try {
-                int bytesRead;
-                while (!done && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
-                        TimeUnit.MILLISECONDS)) != -1) {
-                    // check the value of done again because the read may have
-                    // taken some time (close to the timeout)
-                    if (done) {
-                        return;
-                    }
+			static State create(boolean accepting, long requested) {
+				return new State(accepting, requested);
+			}
+		}
 
-                    // Make the buffer ready to read
-                    buffer.flip();
+		private final AtomicReference<State> state = new AtomicReference<State>(new State(false, 0));
 
-                    // copy the current buffer to a byte array
-                    byte[] chunk = new byte[bytesRead];
-                    buffer.get(chunk, 0, bytesRead);
+		@Override
+		public void request(long n) {
+			if (n <= 0)
+				return;
 
-                    // emit the chunk
-                    emitter.onNext(
-                            new ConnectionNotification(id, Notification.createOnNext(chunk)));
+			while (true) {
+				State s = state.get();
+				long r = s.requested + n;
+				if (r < 0) {
+					r = Long.MAX_VALUE;
+				}
+				final State s2;
+				boolean accept = !s.accepting && r > 0;
+				if (accept) {
+					s2 = State.create(true, r);
+				} else {
+					s2 = State.create(s.accepting, r);
+				}
+				if (state.compareAndSet(s, s2)) {
+					if (accept) {
+						serverSocketChannel.accept(null, this);
+					}
+					break;
+				}
+			}
+		}
 
-                    // Make the buffer ready to write
-                    buffer.clear();
-                }
-                if (!done) {
-                    emitter.onNext(new ConnectionNotification(id,
-                            Notification.<byte[]> createOnCompleted()));
-                }
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                error(id, e);
-            }
-        }
+		private void checkRequests() {
+			while (true) {
+				State s = state.get();
+				long r = s.requested;
+				final State s2;
+				boolean accept = !s.accepting && r > 0;
+				if (accept) {
+					s2 = new State(true, r);
+				} else {
+					s2 = new State(s.accepting, r);
+				}
+				if (state.compareAndSet(s, s2)) {
+					if (accept) {
+						serverSocketChannel.accept(null, this);
+					}
+					break;
+				}
+			}
+		}
 
-        @Override
-        public void failed(Throwable e, Void attachment) {
-            String id = UUID.randomUUID().toString();
-            error(id, e);
-        }
+		@Override
+		public void completed(AsynchronousSocketChannel socketChannel, Void attachment) {
 
-        private void error(String id, Throwable e) {
-            if (!done) {
-                emitter.onNext(
-                        new ConnectionNotification(id, Notification.<byte[]> createOnError(e)));
-            }
-        }
+			checkRequests();
 
-    }
+			Action1<AsyncEmitter<byte[]>> emitterAction = new Action1<AsyncEmitter<byte[]>>() {
 
-    // Visible for testing
-    static Action1<Closeable> closer() {
-        return c -> {
-            try {
-                c.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        };
-    }
+				volatile boolean done;
+
+				@Override
+				public void call(AsyncEmitter<byte[]> emitter) {
+					emitter.setCancellation(() -> {
+						done = true;
+						socketChannel.close();
+					});
+
+					// Allocate a byte buffer to read from the client
+					ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+					try {
+						int bytesRead;
+						while (!done && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
+								TimeUnit.MILLISECONDS)) != -1) {
+							// check the value of done again because the read
+							// may have taken some time (close to the timeout)
+							if (done) {
+								return;
+							}
+
+							// Make the buffer ready to read
+							buffer.flip();
+
+							// copy the current buffer to a byte array
+							byte[] chunk = new byte[bytesRead];
+							buffer.get(chunk, 0, bytesRead);
+
+							// emit the chunk
+							emitter.onNext(chunk);
+
+							// Make the buffer ready to write
+							buffer.clear();
+						}
+						if (!done) {
+							emitter.onCompleted();
+						}
+					} catch (InterruptedException | ExecutionException | TimeoutException e) {
+						emitter.onError(e);
+					}
+
+				}
+			};
+
+			Observable<byte[]> obs = Observable.fromAsync(emitterAction, BackpressureMode.BUFFER);
+			if (!subscriber.isUnsubscribed()) {
+				subscriber.onNext(obs);
+			}
+		}
+
+		@Override
+		public void failed(Throwable e, Void attachment) {
+			if (!subscriber.isUnsubscribed()) {
+				subscriber.onNext(Observable.error(e));
+			}
+		}
+
+	}
+
+	// Visible for testing
+	static Action1<Closeable> closer() {
+		return c -> {
+			try {
+				c.close();
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		};
+	}
 
 }
