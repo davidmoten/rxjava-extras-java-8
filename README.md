@@ -20,15 +20,9 @@ int port = 12345;
 long timeoutSeconds = 10;
 // will use a buffer of 8192 bytes by default
 IO.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
-    // group by connection id
-    .groupBy(cn -> cn.id())
     // handle each connection as a separate stream
     .flatMap(g -> 
-        // g is the stream of notifications for one connection 
-        // note that g.getKey() will return the connection id
-        g.map(cn -> cn.notification())
-         // turn into a stream of byte[]
-         .<byte[]> dematerialize()
+        // g is the stream of bytes for one connection 
          // accumulate the byte[] into one byte[]
          .transform(Bytes.collect()) 
          // if any error occurred with the stream then emit nothing
