@@ -25,11 +25,9 @@ IO.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
         // g is the stream of bytes for one connection 
          // accumulate the byte[] into one byte[]
          .transform(Bytes.collect()) 
-         // if any error occurred with the stream then emit nothing
-         // and complete this connections stream (which will release its
-         // entry from the internal map maintained by groupBy). 
-         // We don't emit an error because it would should down all 
-         // other connections as well. 
+         // if any error occurs then emit nothing for this connection
+         // and complete. We don't emit an error because it would 
+         // shut down all other connections as well. 
          .onErrorResumeNext(Observable.empty())
          // print the byte array message for one connection
          // to the console as a string
