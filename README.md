@@ -34,8 +34,9 @@ IO.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
          .doOnNext(bytes -> System.out.println(new String(bytes))))
     .subscribe(subscriber);
 
-// a call to unsubscribe will cancel
-// the stream and close the server socket
+// a call to unsubscribe will cancel any 
+// blocking reads (by closing the socket)
+// and close the server socket
 subscriber.unsubscribe();
 ```
              .
