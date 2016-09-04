@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
@@ -29,8 +30,8 @@ public final class ObservableServerSocket {
 	}
 
 	public static Observable<Observable<byte[]>> create(final int port, final long timeout, final TimeUnit unit,
-			final int bufferSize, BackpressureMode backpressureMode) {
-		Func0<AsynchronousServerSocketChannel> serverSocketFactory = createServerSocketFactory(port);
+			final int bufferSize, BackpressureMode backpressureMode, Func0<AsynchronousChannelGroup> group) {
+		Func0<AsynchronousServerSocketChannel> serverSocketFactory = createServerSocketFactory(port, group);
 		Func1<AsynchronousServerSocketChannel, Observable<Observable<byte[]>>> serverSocketObservable = serverSocketChannel -> Observable
 				.create(new MyOnSubscribe(serverSocketChannel, unit.toMillis(timeout), bufferSize, backpressureMode));
 		// Observable.using handles closing of stuff on termination or
@@ -38,10 +39,11 @@ public final class ObservableServerSocket {
 		return Observable.using(serverSocketFactory, serverSocketObservable, closer());
 	}
 
-	private static Func0<AsynchronousServerSocketChannel> createServerSocketFactory(final int port) {
+	private static Func0<AsynchronousServerSocketChannel> createServerSocketFactory(final int port, Func0<AsynchronousChannelGroup> group) {
 		return () -> {
 			try {
-				return AsynchronousServerSocketChannel.open().bind(new InetSocketAddress(port));
+				AsynchronousChannelGroup g = group == null ? null : group.call();
+				return AsynchronousServerSocketChannel.open(g).bind(new InetSocketAddress(port));
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
