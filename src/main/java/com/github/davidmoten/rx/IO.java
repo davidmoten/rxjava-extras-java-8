@@ -9,8 +9,6 @@ import rx.Observable;
 
 public final class IO {
 
-    private static final int DEFAULT_BUFFER_SIZE = 8192;
-
     private IO() {
         // prevent instantiation
     }
