@@ -4,6 +4,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.github.davidmoten.rx.internal.operators.ObservableServerSocket;
 
+import rx.AsyncEmitter.BackpressureMode;
 import rx.Observable;
 
 public final class IO {
@@ -15,8 +16,8 @@ public final class IO {
     }
 
     public static Observable<Observable<byte[]>> serverSocket(int port, long timeout,
-            TimeUnit unit, int bufferSize) {
-        return ObservableServerSocket.create(port, timeout, unit, bufferSize);
+            TimeUnit unit, int bufferSize, BackpressureMode backpressureMode) {
+        return ObservableServerSocket.create(port, timeout, unit, bufferSize, backpressureMode);
     }
 
 

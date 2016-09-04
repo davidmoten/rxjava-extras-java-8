@@ -29,10 +29,10 @@ public final class ObservableServerSocket {
 	}
 
 	public static Observable<Observable<byte[]>> create(final int port, final long timeout, final TimeUnit unit,
-			final int bufferSize) {
+			final int bufferSize, BackpressureMode backpressureMode) {
 		Func0<AsynchronousServerSocketChannel> serverSocketFactory = createServerSocketFactory(port);
 		Func1<AsynchronousServerSocketChannel, Observable<Observable<byte[]>>> serverSocketObservable = serverSocketChannel -> Observable
-				.create(new MyOnSubscribe(serverSocketChannel, unit.toMillis(timeout), bufferSize));
+				.create(new MyOnSubscribe(serverSocketChannel, unit.toMillis(timeout), bufferSize, backpressureMode));
 		// Observable.using handles closing of stuff on termination or
 		// unsubscription
 		return Observable.using(serverSocketFactory, serverSocketObservable, closer());
@@ -53,16 +53,18 @@ public final class ObservableServerSocket {
 		private final AsynchronousServerSocketChannel serverSocketChannel;
 		private final long timeoutMs;
 		private final int bufferSize;
+		private final BackpressureMode backpressureMode;
 
-		MyOnSubscribe(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs, int bufferSize) {
+		MyOnSubscribe(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs, int bufferSize, BackpressureMode backpressureMode) {
 			this.serverSocketChannel = serverSocketChannel;
 			this.timeoutMs = timeoutMs;
 			this.bufferSize = bufferSize;
+			this.backpressureMode = backpressureMode;
 		}
 
 		@Override
 		public void call(Subscriber<? super Observable<byte[]>> subscriber) {
-			subscriber.setProducer(new MyProducer(serverSocketChannel, timeoutMs, bufferSize, subscriber));
+			subscriber.setProducer(new MyProducer(serverSocketChannel, timeoutMs, bufferSize, subscriber, backpressureMode));
 		}
 
 	}
@@ -73,13 +75,15 @@ public final class ObservableServerSocket {
 		private final long timeoutMs;
 		private final int bufferSize;
 		private final Subscriber<? super Observable<byte[]>> subscriber;
+		private final BackpressureMode backpressureMode;
 
 		public MyProducer(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs, int bufferSize,
-				Subscriber<? super Observable<byte[]>> subscriber) {
+				Subscriber<? super Observable<byte[]>> subscriber, BackpressureMode backpressureMode) {
 			this.serverSocketChannel = serverSocketChannel;
 			this.timeoutMs = timeoutMs;
 			this.bufferSize = bufferSize;
 			this.subscriber = subscriber;
+			this.backpressureMode = backpressureMode;
 		}
 
 		private static final class State {
@@ -196,7 +200,7 @@ public final class ObservableServerSocket {
 				}
 			};
 
-			Observable<byte[]> obs = Observable.fromAsync(emitterAction, BackpressureMode.BUFFER);
+			Observable<byte[]> obs = Observable.fromAsync(emitterAction, backpressureMode);
 			if (!subscriber.isUnsubscribed()) {
 				subscriber.onNext(obs);
 			}

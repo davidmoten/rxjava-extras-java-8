@@ -24,122 +24,123 @@ import com.github.davidmoten.rx.Bytes;
 import com.github.davidmoten.rx.IO;
 
 import rx.Observable;
+import rx.AsyncEmitter.BackpressureMode;
 import rx.observers.TestSubscriber;
 
 public final class ObservableServerSocketTest {
 
-    private static final int PORT = 12345;
-    private static final String TEXT = "hello there";
+	private static final int PORT = 12345;
+	private static final String TEXT = "hello there";
 
-    @Test
-    public void serverSocketReadsTcpPushWhenBufferIsSmallerThanInput()
-            throws UnknownHostException, IOException, InterruptedException {
-        checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, 4);
-    }
+	@Test
+	public void serverSocketReadsTcpPushWhenBufferIsSmallerThanInput()
+			throws UnknownHostException, IOException, InterruptedException {
+		checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, 4);
+	}
 
-    @Test
-    public void serverSocketReadsTcpPushWhenBufferIsBiggerThanInput()
-            throws UnknownHostException, IOException, InterruptedException {
-        checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, 8192);
-    }
+	@Test
+	public void serverSocketReadsTcpPushWhenBufferIsBiggerThanInput()
+			throws UnknownHostException, IOException, InterruptedException {
+		checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, 8192);
+	}
 
-    @Test
-    public void serverSocketReadsTcpPushWhenBufferIsSameSizeAsInput()
-            throws UnknownHostException, IOException, InterruptedException {
-        checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, TEXT.length());
-    }
+	@Test
+	public void serverSocketReadsTcpPushWhenBufferIsSameSizeAsInput()
+			throws UnknownHostException, IOException, InterruptedException {
+		checkServerSocketReadsTcpPushWhenBufferSizeIs(TEXT, TEXT.length());
+	}
 
-    @Test
-    public void serverSocketReadsTcpPushWhenInputIsEmpty()
-            throws UnknownHostException, IOException, InterruptedException {
-        checkServerSocketReadsTcpPushWhenBufferSizeIs("", 4);
-    }
+	@Test
+	public void serverSocketReadsTcpPushWhenInputIsEmpty()
+			throws UnknownHostException, IOException, InterruptedException {
+		checkServerSocketReadsTcpPushWhenBufferSizeIs("", 4);
+	}
 
-    @Test
-    public void serverSocketReadsTcpPushWhenInputIsOneCharacter()
-            throws UnknownHostException, IOException, InterruptedException {
-        checkServerSocketReadsTcpPushWhenBufferSizeIs("a", 4);
-    }
+	@Test
+	public void serverSocketReadsTcpPushWhenInputIsOneCharacter()
+			throws UnknownHostException, IOException, InterruptedException {
+		checkServerSocketReadsTcpPushWhenBufferSizeIs("a", 4);
+	}
 
-    @Test
-    public void errorEmittedIfServerSocketBusy() throws IOException {
+	@Test
+	public void errorEmittedIfServerSocketBusy() throws IOException {
 
-        TestSubscriber<Object> ts = TestSubscriber.create();
-        try (ServerSocket socket = new ServerSocket(PORT)) {
-            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 5).subscribe(ts);
-            ts.assertNoValues();
-            ts.assertNotCompleted();
-            ts.assertTerminalEvent();
-            assertTrue(ts.getOnErrorEvents().get(0).getCause() instanceof BindException);
-        }
-    }
+		TestSubscriber<Object> ts = TestSubscriber.create();
+		try (ServerSocket socket = new ServerSocket(PORT)) {
+			IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 5, BackpressureMode.BUFFER).subscribe(ts);
+			ts.assertNoValues();
+			ts.assertNotCompleted();
+			ts.assertTerminalEvent();
+			assertTrue(ts.getOnErrorEvents().get(0).getCause() instanceof BindException);
+		}
+	}
 
-    @Test
-    public void isUtilityClass() {
-        Asserts.assertIsUtilityClass(ObservableServerSocket.class);
-    }
+	@Test
+	public void isUtilityClass() {
+		Asserts.assertIsUtilityClass(ObservableServerSocket.class);
+	}
 
-    @Test
-    public void isUtilityClassIO() {
-        Asserts.assertIsUtilityClass(IO.class);
-    }
+	@Test
+	public void isUtilityClassIO() {
+		Asserts.assertIsUtilityClass(IO.class);
+	}
 
-    @Test
-    public void testCloserWhenDoesNotThrow() {
-        AtomicBoolean called = new AtomicBoolean();
-        Closeable c = new Closeable() {
+	@Test
+	public void testCloserWhenDoesNotThrow() {
+		AtomicBoolean called = new AtomicBoolean();
+		Closeable c = new Closeable() {
 
-            @Override
-            public void close() throws IOException {
-                called.set(true);
-            }
-        };
-        ObservableServerSocket.closer().call(c);
-        assertTrue(called.get());
-    }
+			@Override
+			public void close() throws IOException {
+				called.set(true);
+			}
+		};
+		ObservableServerSocket.closer().call(c);
+		assertTrue(called.get());
+	}
 
-    @Test
-    public void testCloserWhenThrows() {
-        IOException ex = new IOException();
-        Closeable c = new Closeable() {
+	@Test
+	public void testCloserWhenThrows() {
+		IOException ex = new IOException();
+		Closeable c = new Closeable() {
 
-            @Override
-            public void close() throws IOException {
-                throw ex;
-            }
-        };
-        try {
-            ObservableServerSocket.closer().call(c);
-            Assert.fail();
-        } catch (RuntimeException e) {
-            assertTrue(ex == e.getCause());
-        }
-    }
+			@Override
+			public void close() throws IOException {
+				throw ex;
+			}
+		};
+		try {
+			ObservableServerSocket.closer().call(c);
+			Assert.fail();
+		} catch (RuntimeException e) {
+			assertTrue(ex == e.getCause());
+		}
+	}
 
-    private void checkServerSocketReadsTcpPushWhenBufferSizeIs(String text, int bufferSize)
-            throws UnknownHostException, IOException, InterruptedException {
-        TestSubscriber<Object> ts = TestSubscriber.create();
-        AtomicReference<byte[]> result = new AtomicReference<byte[]>();
-        try {
-            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize) //
-                    .flatMap(g -> g //
-                            .compose(Bytes.collect()) //
-                            .doOnNext(Actions.setAtomic(result)) //
-                            .doOnNext(bytes -> System.out.println(
-                                    Thread.currentThread().getName() + ": " + new String(bytes))) //
-                            .onErrorResumeNext(Observable.empty()))
-                    .subscribe(ts);
-            Socket socket = new Socket("localhost", 12345);
-            OutputStream out = socket.getOutputStream();
-            out.write(text.getBytes());
-            out.close();
-            socket.close();
-            Thread.sleep(1000);
-            assertEquals(text, new String(result.get(), StandardCharsets.UTF_8));
-        } finally {
-            // will close server socket
-            ts.unsubscribe();
-        }
-    }
+	private void checkServerSocketReadsTcpPushWhenBufferSizeIs(String text, int bufferSize)
+			throws UnknownHostException, IOException, InterruptedException {
+		TestSubscriber<Object> ts = TestSubscriber.create();
+		AtomicReference<byte[]> result = new AtomicReference<byte[]>();
+		try {
+			IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER) //
+					.flatMap(g -> g //
+							.compose(Bytes.collect()) //
+							.doOnNext(Actions.setAtomic(result)) //
+							.doOnNext(bytes -> System.out
+									.println(Thread.currentThread().getName() + ": " + new String(bytes))) //
+							.onErrorResumeNext(Observable.empty()))
+					.subscribe(ts);
+			Socket socket = new Socket("localhost", 12345);
+			OutputStream out = socket.getOutputStream();
+			out.write(text.getBytes());
+			out.close();
+			socket.close();
+			Thread.sleep(1000);
+			assertEquals(text, new String(result.get(), StandardCharsets.UTF_8));
+		} finally {
+			// will close server socket
+			ts.unsubscribe();
+		}
+	}
 
 }
