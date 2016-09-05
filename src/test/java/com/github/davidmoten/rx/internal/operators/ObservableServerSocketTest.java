@@ -137,7 +137,7 @@ public final class ObservableServerSocketTest {
                     .subscribe(ts);
             TestSubscriber<Object> ts2 = TestSubscriber.create();
             Set<String> messages = new ConcurrentSkipListSet<>();
-            int messageBlocks = 1;
+            int messageBlocks = 10;
             int numMessages = 1000;
             Observable.range(1, numMessages).flatMap(n -> {
                 return Observable.defer(() -> {
