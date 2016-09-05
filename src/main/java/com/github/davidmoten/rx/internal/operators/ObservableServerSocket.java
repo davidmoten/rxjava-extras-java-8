@@ -11,7 +11,6 @@ import java.nio.channels.CompletionHandler;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import rx.AsyncEmitter;
@@ -86,9 +85,8 @@ public final class ObservableServerSocket {
         private final int bufferSize;
         private final Subscriber<? super Observable<byte[]>> subscriber;
         private final BackpressureMode backpressureMode;
-        private final AtomicLong requested = new AtomicLong();
 
-        public MyProducer(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs,
+        MyProducer(AsynchronousServerSocketChannel serverSocketChannel, long timeoutMs,
                 int bufferSize, Subscriber<? super Observable<byte[]>> subscriber,
                 BackpressureMode backpressureMode) {
             this.serverSocketChannel = serverSocketChannel;
@@ -99,26 +97,27 @@ public final class ObservableServerSocket {
         }
 
         private static final class State {
-            final long accepting;
+            final boolean canAcceptFromRequest;
             final long requested;
 
-            State(long accepting, long requested) {
-                this.accepting = accepting;
+            State(boolean accepting, long requested) {
+                this.canAcceptFromRequest = accepting;
                 this.requested = requested;
             }
 
-            static State create(long accepting, long requested) {
-                return new State(accepting, requested);
+            static State create(boolean canAcceptFromRequest, long requested) {
+                return new State(canAcceptFromRequest, requested);
             }
 
             @Override
             public String toString() {
-                return "State [accepting=" + accepting + ", requested=" + requested + "]";
+                return "State [canAcceptFromRequest=" + canAcceptFromRequest + ", requested="
+                        + requested + "]";
             }
 
         }
 
-        private final AtomicReference<State> state = new AtomicReference<State>(new State(0, 0));
+        private final AtomicReference<State> state = new AtomicReference<State>(new State(true, 0));
 
         @Override
         public void request(long n) {
@@ -132,8 +131,13 @@ public final class ObservableServerSocket {
                 if (r < 0) {
                     r = Long.MAX_VALUE;
                 }
-                boolean accept = s.accepting == 0 && r > 0;
-                State s2 = State.create(s.accepting + 1, r);
+                boolean accept = s.canAcceptFromRequest && r > 0;
+                final State s2;
+                if (accept) {
+                    s2 = State.create(false, decrement(r));
+                } else {
+                    s2 = State.create(s.canAcceptFromRequest, r);
+                }
                 if (state.compareAndSet(s, s2)) {
                     if (accept) {
                         System.out.println("accepting via request for " + n);
@@ -155,9 +159,9 @@ public final class ObservableServerSocket {
                 boolean accept = r > 0;
                 final State s2;
                 if (accept)
-                    s2 = new State(s.accepting - 1, decrement(r));
+                    s2 = new State(false, decrement(r));
                 else
-                    s2 = new State(s.accepting, r);
+                    s2 = new State(true, r);
                 if (state.compareAndSet(s, s2)) {
                     if (accept) {
                         System.out.println("accepting via check ");
