@@ -126,7 +126,8 @@ public final class ObservableServerSocketTest {
 
 	@Test
 	public void testAsynchronousDelivery() throws InterruptedException {
-		for (int k = 0; k < 100; k++) {
+		Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(50));
+		for (int k = 0; k < 1; k++) {
 			TestSubscriber<String> ts = TestSubscriber.create();
 			try {
 				int bufferSize = 4;
@@ -144,7 +145,6 @@ public final class ObservableServerSocketTest {
 				int numMessages = 1000;
 
 				// sender
-				Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(50));
 				Observable.range(1, numMessages).flatMap(n -> {
 					return Observable.defer(() -> {
 						System.out.println(Thread.currentThread().getName() + " - writing message");
