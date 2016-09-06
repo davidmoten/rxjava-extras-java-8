@@ -130,7 +130,7 @@ public final class ObservableServerSocketTest {
             IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER) //
                     .flatMap(g -> g //
                             .compose(Bytes.collect()) //
-                            .onErrorResumeNext(Observable.empty())) //
+                            .onErrorResumeNext(Observable.empty()), 1) //
                     .map(bytes -> new String(bytes, StandardCharsets.UTF_8)) //
                     .doOnNext(System.out::println) //
                     .doOnError(e -> e.printStackTrace()) //

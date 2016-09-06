@@ -9,7 +9,7 @@ Status: *pre-alpha* (not ready yet!)
 * `IO.serverSocket` - Uses NIO to listen on a server socket and Observables of byte array chunks for each connection
 
 ##IO.serverSocket
-This method was created to support a somewhat bizarre legacy message delivery system. As the server doesn't communicate a response to the client at end of stream message delivery is not guaranteed.
+This method was created to support a somewhat bizarre legacy message delivery system. As the server doesn't communicate a response to the client at end of stream message delivery is not guaranteed. Under the covers it uses `java.nio.channels.AsynchronousServerSocketChannel` which requires Java 7 at least (to leverage lambdas I've push the requirement to be Java 8).
 
 ###Usage
 
