@@ -140,12 +140,8 @@ public final class ObservableServerSocket {
                 }
                 if (state.compareAndSet(s, s2)) {
                     if (accept) {
-                        System.out.println("accepting via request for " + n);
                         serverSocketChannel.accept(null, this);
-                    } else {
-                        System.out.println("not ready to accept via request for " + n);
                     }
-                    System.out.println("state=" + state);
                     break;
                 }
             }
@@ -164,12 +160,8 @@ public final class ObservableServerSocket {
                     s2 = new State(true, r);
                 if (state.compareAndSet(s, s2)) {
                     if (accept) {
-                        System.out.println("accepting via check ");
                         serverSocketChannel.accept(null, this);
-                    } else {
-                        System.out.println("not ready to accept via check");
                     }
-                    System.out.println("state=" + state);
                     break;
                 }
             }
@@ -185,7 +177,6 @@ public final class ObservableServerSocket {
 
         @Override
         public void completed(AsynchronousSocketChannel socketChannel, Void attachment) {
-            System.out.println("socket connected");
 
             checkRequests();
 
