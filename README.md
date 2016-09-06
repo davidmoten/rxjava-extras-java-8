@@ -9,7 +9,7 @@ Status: *pre-alpha* (not ready yet!)
 * `IO.serverSocket` - Uses NIO to listen on a server socket and Observables of byte array chunks for each connection
 
 ##IO.serverSocket
-Built this functionality to support a somewhat bizarre legacy message delivery system. As the server doesn't communicate a response to the client at end of stream message delivery is not guaranteed.
+This method was created to support a somewhat bizarre legacy message delivery system. As the server doesn't communicate a response to the client at end of stream message delivery is not guaranteed.
 
 ###Usage
 
