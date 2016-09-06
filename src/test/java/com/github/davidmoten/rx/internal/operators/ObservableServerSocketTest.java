@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,6 +30,7 @@ import com.github.davidmoten.rx.IO;
 
 import rx.AsyncEmitter.BackpressureMode;
 import rx.Observable;
+import rx.Scheduler;
 import rx.observers.TestSubscriber;
 import rx.schedulers.Schedulers;
 
@@ -137,8 +139,12 @@ public final class ObservableServerSocketTest {
                     .subscribe(ts);
             TestSubscriber<Object> ts2 = TestSubscriber.create();
             Set<String> messages = new ConcurrentSkipListSet<>();
+            
             int messageBlocks = 10;
             int numMessages = 1000;
+            
+            //sender
+            Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(50));
             Observable.range(1, numMessages).flatMap(n -> {
                 return Observable.defer(() -> {
                     System.out.println(Thread.currentThread().getName() + " - writing message");
@@ -160,7 +166,7 @@ public final class ObservableServerSocketTest {
                         throw new RuntimeException(e);
                     }
                     return Observable.just(1);
-                }).subscribeOn(Schedulers.computation());
+                }).subscribeOn(scheduler);
             } , 1).subscribe(ts2);
             ts2.awaitTerminalEvent();
             ts2.assertCompleted();
