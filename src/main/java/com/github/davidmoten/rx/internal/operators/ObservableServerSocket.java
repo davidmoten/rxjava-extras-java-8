@@ -191,10 +191,12 @@ public final class ObservableServerSocket {
 
             checkRequests();
 
-            Observable<byte[]> obs = Observable.fromEmitter(
-                    new MyEmitter(socketChannel, bufferSize, timeoutMs), backpressureMode);
+            MyEmitter emitter = new MyEmitter(socketChannel, bufferSize, timeoutMs);
+
+            Observable<byte[]> obs = Observable.fromEmitter(emitter, backpressureMode);
 
             if (!subscriber.isUnsubscribed()) {
+                // note to get here there must have been a request
                 subscriber.onNext(obs);
             }
         }
@@ -202,6 +204,7 @@ public final class ObservableServerSocket {
         @Override
         public void failed(Throwable e, Void attachment) {
             if (!subscriber.isUnsubscribed()) {
+                // note to get here there must have been a request
                 subscriber.onNext(Observable.error(e));
             }
         }
@@ -261,14 +264,15 @@ public final class ObservableServerSocket {
                     emitter.onCompleted();
                 }
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                emitter.onError(e);
+                if (!done) {
+                    emitter.onError(e);
+                }
             }
 
         }
 
         private Future<Integer> read(ByteBuffer buffer) {
-            this.read = socketChannel.read(buffer);
-            return read;
+            return this.read = socketChannel.read(buffer);
         }
     }
 
