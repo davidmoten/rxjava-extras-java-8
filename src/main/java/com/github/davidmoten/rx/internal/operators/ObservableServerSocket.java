@@ -118,13 +118,14 @@ public final class ObservableServerSocket {
                 return;
 
             // The way to initiate the processing of socket connections is to
-            // call serverSocketChannel.accept once, then the accepted pattern
-            // is to call serverSocketChannel.accept again in the completed()
-            // method of the CompletionHandler. Calling `accept` outside of this
-            // pattern risks provoking an `AcceptPendingException`. However , if
-            // there are insufficient requests of the parent the completed()
-            // method will not call `accept` and the responsibility for calling
-            // `accept` fals to the `request` method (just like on startup).
+            // call `serverSocketChannel.accept` once, then the accepted pattern
+            // is to call `serverSocketChannel.accept` again in the
+            // `completed()` method of the `CompletionHandler`. Calling `accept`
+            // outside of this pattern risks provoking an
+            // `AcceptPendingException`. However, if there are insufficient
+            // requests of the parent the `completed()` method will not call
+            // `accept` and the responsibility for calling `accept` falls to the
+            // `request` method (just like on startup).
 
             // use CAS loop to safely update state
             while (true) {
@@ -152,15 +153,18 @@ public final class ObservableServerSocket {
 
         private void checkRequests() {
             // use CAS loop to safely update state
+            // if accept happens here then set `canAcceptFromRequest` in state
+            // to false otherwise set it to true
             while (true) {
                 State s = state.get();
                 long r = s.requested;
                 boolean accept = r > 0;
                 final State s2;
-                if (accept)
+                if (accept) {
                     s2 = new State(false, decrement(r));
-                else
+                } else {
                     s2 = new State(true, r);
+                }
                 if (state.compareAndSet(s, s2)) {
                     if (accept) {
                         serverSocketChannel.accept(null, this);
@@ -183,54 +187,9 @@ public final class ObservableServerSocket {
 
             checkRequests();
 
-            Action1<AsyncEmitter<byte[]>> emitterAction = new Action1<AsyncEmitter<byte[]>>() {
+            Observable<byte[]> obs = Observable.fromEmitter(
+                    new MyEmitter(socketChannel, bufferSize, timeoutMs), backpressureMode);
 
-                volatile boolean done;
-
-                @Override
-                public void call(AsyncEmitter<byte[]> emitter) {
-                    emitter.setCancellation(() -> {
-                        done = true;
-                        // pull the plug on a blocking read
-                        socketChannel.close();
-                    });
-
-                    // Allocate a byte buffer to read from the client
-                    ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
-                    try {
-                        int bytesRead;
-                        while (!done && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
-                                TimeUnit.MILLISECONDS)) != -1) {
-                            // check the value of done again because the read
-                            // may have taken some time (waiting for timeout)
-                            if (done) {
-                                return;
-                            }
-
-                            // Make the buffer ready to read
-                            buffer.flip();
-
-                            // copy the current buffer to a byte array
-                            byte[] chunk = new byte[bytesRead];
-                            buffer.get(chunk, 0, bytesRead);
-
-                            // emit the chunk
-                            emitter.onNext(chunk);
-
-                            // Make the buffer ready to write
-                            buffer.clear();
-                        }
-                        if (!done) {
-                            emitter.onCompleted();
-                        }
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        emitter.onError(e);
-                    }
-
-                }
-            };
-
-            Observable<byte[]> obs = Observable.fromEmitter(emitterAction, backpressureMode);
             if (!subscriber.isUnsubscribed()) {
                 subscriber.onNext(obs);
             }
@@ -243,6 +202,63 @@ public final class ObservableServerSocket {
             }
         }
 
+    }
+
+    private static final class MyEmitter implements Action1<AsyncEmitter<byte[]>> {
+
+        private final AsynchronousSocketChannel socketChannel;
+        private final int bufferSize;
+        private final long timeoutMs;
+
+        private volatile boolean done;
+
+        MyEmitter(AsynchronousSocketChannel socketChannel, int bufferSize, long timeoutMs) {
+            this.socketChannel = socketChannel;
+            this.bufferSize = bufferSize;
+            this.timeoutMs = timeoutMs;
+        }
+
+        @Override
+        public void call(AsyncEmitter<byte[]> emitter) {
+            emitter.setCancellation(() -> {
+                done = true;
+                // pull the plug on a blocking read
+                socketChannel.close();
+            });
+
+            // Allocate a byte buffer to read from the client
+            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+            try {
+                int bytesRead;
+                while (!done && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
+                        TimeUnit.MILLISECONDS)) != -1) {
+                    // check the value of done again because the read
+                    // may have taken some time (waiting for timeout)
+                    if (done) {
+                        return;
+                    }
+
+                    // Make the buffer ready to read
+                    buffer.flip();
+
+                    // copy the current buffer to a byte array
+                    byte[] chunk = new byte[bytesRead];
+                    buffer.get(chunk, 0, bytesRead);
+
+                    // emit the chunk
+                    emitter.onNext(chunk);
+
+                    // Make the buffer ready to write
+                    buffer.clear();
+                }
+                if (!done) {
+                    emitter.onCompleted();
+                }
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                emitter.onError(e);
+            }
+
+        }
     }
 
     // Visible for testing
