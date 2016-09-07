@@ -14,6 +14,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -40,6 +41,7 @@ import rx.Scheduler;
 import rx.Subscriber;
 import rx.functions.Func0;
 import rx.observers.TestSubscriber;
+import rx.plugins.RxJavaHooks;
 import rx.schedulers.Schedulers;
 
 public final class ObservableServerSocketTest {
@@ -172,6 +174,74 @@ public final class ObservableServerSocketTest {
             Assert.fail();
         } catch (RuntimeException e) {
             assertTrue(ex == e.getCause());
+        }
+    }
+
+    @Test
+    public void testEarlyUnsubscribe()
+            throws UnknownHostException, IOException, InterruptedException {
+        TestSubscriber<Object> ts = TestSubscriber.create();
+        AtomicReference<byte[]> result = new AtomicReference<byte[]>();
+        try {
+            int bufferSize = 4;
+            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER) //
+                    .flatMap(g -> g //
+                            .first() //
+                            .compose(Bytes.collect()) //
+                            .doOnNext(Actions.setAtomic(result)) //
+                            .doOnNext(bytes -> System.out.println(
+                                    Thread.currentThread().getName() + ": " + new String(bytes))) //
+                            .onErrorResumeNext(Observable.empty()))
+                    .subscribe(ts);
+            Socket socket = new Socket("localhost", PORT);
+            OutputStream out = socket.getOutputStream();
+            out.write("12345678901234567890".getBytes());
+            out.close();
+            socket.close();
+            Thread.sleep(1000);
+            assertEquals("1234", new String(result.get(), StandardCharsets.UTF_8));
+        } finally {
+            // will close server socket
+            ts.unsubscribe();
+        }
+    }
+
+    @Test
+    public void testCancelDoesNotHaveToWaitForTimeout()
+            throws UnknownHostException, IOException, InterruptedException {
+        RxJavaHooks.setOnError(Actions.printStackTrace1());
+        TestSubscriber<Object> ts = TestSubscriber.create();
+        AtomicReference<byte[]> result = new AtomicReference<byte[]>();
+        try {
+            int bufferSize = 4;
+            IO.serverSocket(PORT, 100, TimeUnit.HOURS, bufferSize, BackpressureMode.BUFFER) //
+                    .flatMap(g -> g //
+                            .first() //
+                            .compose(Bytes.collect()) //
+                            .doOnNext(Actions.setAtomic(result)) //
+                            .map(bytes -> new String(bytes, StandardCharsets.UTF_8)) //
+                            .doOnNext(s -> System.out
+                                    .println(Thread.currentThread().getName() + ": " + s)) //
+                            .onErrorResumeNext(Observable.empty()))
+                    .subscribe(ts);
+            @SuppressWarnings("resource")
+            Socket socket = new Socket("localhost", PORT);
+            OutputStream out = socket.getOutputStream();
+            out.write("hell".getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            Thread.sleep(500);
+            assertEquals(Arrays.asList("hell"), ts.getOnNextEvents());
+            ts.assertNoTerminalEvent();
+            out.write("will-fail".getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        } finally {
+            // will close server socket
+            try {
+                ts.unsubscribe();
+                Thread.sleep(300);
+            } finally {
+                RxJavaHooks.reset();
+            }
         }
     }
 
