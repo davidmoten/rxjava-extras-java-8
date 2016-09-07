@@ -114,8 +114,11 @@ public final class ObservableServerSocket {
 
         @Override
         public void request(long n) {
-            if (n <= 0)
+            if (n < 0) {
+                throw new IllegalArgumentException("cannot request < 0");
+            } else if (n == 0) {
                 return;
+            }
 
             // The way to initiate the processing of socket connections is to
             // call `serverSocketChannel.accept` once, then the accepted pattern

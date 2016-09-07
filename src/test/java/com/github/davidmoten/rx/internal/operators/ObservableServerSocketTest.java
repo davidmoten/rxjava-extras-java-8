@@ -2,6 +2,7 @@ package com.github.davidmoten.rx.internal.operators;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.Closeable;
@@ -11,11 +12,13 @@ import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,11 +30,15 @@ import org.junit.Test;
 import com.github.davidmoten.junit.Asserts;
 import com.github.davidmoten.rx.Actions;
 import com.github.davidmoten.rx.Bytes;
+import com.github.davidmoten.rx.Checked;
 import com.github.davidmoten.rx.IO;
 
 import rx.AsyncEmitter.BackpressureMode;
 import rx.Observable;
+import rx.Producer;
 import rx.Scheduler;
+import rx.Subscriber;
+import rx.functions.Func0;
 import rx.observers.TestSubscriber;
 import rx.schedulers.Schedulers;
 
@@ -84,6 +91,48 @@ public final class ObservableServerSocketTest {
     }
 
     @Test
+    public void negativeRequestEmitsError() throws IOException {
+        AtomicReference<Throwable> exception = new AtomicReference<>();
+        Subscriber<Object> s = new Subscriber<Object>() {
+
+            @Override
+            public void onStart() {
+                request(0);
+            }
+
+            @Override
+            public void setProducer(Producer p) {
+                p.request(-1);
+            }
+
+            @Override
+            public void onCompleted() {
+
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                exception.set(e);
+            }
+
+            @Override
+            public void onNext(Object t) {
+
+            }
+        };
+        try {
+            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 5, BackpressureMode.BUFFER)
+                    .unsafeSubscribe(s);
+            Throwable ex = exception.get();
+            assertNotNull(ex);
+            assertTrue(ex instanceof IllegalArgumentException);
+        } finally {
+            s.unsubscribe();
+        }
+
+    }
+
+    @Test
     public void isUtilityClass() {
         Asserts.assertIsUtilityClass(ObservableServerSocket.class);
     }
@@ -126,14 +175,27 @@ public final class ObservableServerSocketTest {
     }
 
     @Test
-    public void testAsynchronousDelivery() throws InterruptedException {
+    public void testAsynchronousDeliveryWithDefaultAsynchronousChannelGroup()
+            throws InterruptedException {
+        testAsync(() -> null);
+    }
+
+    @Test
+    public void testAsynchronousDeliveryWithCustomAsynchronousChannelGroup()
+            throws InterruptedException {
+        ExecutorService executor = Executors.newFixedThreadPool(10);
+        testAsync(Checked.f0(() -> AsynchronousChannelGroup.withThreadPool(executor)));
+    }
+
+    private void testAsync(Func0<AsynchronousChannelGroup> group) throws InterruptedException {
         Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(50));
         AtomicBoolean errored = new AtomicBoolean(false);
         for (int k = 0; k < 1; k++) {
             TestSubscriber<String> ts = TestSubscriber.create();
             try {
                 int bufferSize = 4;
-                IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER) //
+                IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER,
+                        group) //
                         .flatMap(g -> g //
                                 .compose(Bytes.collect()) //
                                 .onErrorResumeNext(Observable.empty()), 1) //
