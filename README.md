@@ -24,7 +24,7 @@ IO.serverSocket(port, timeoutSeconds, TimeUnit.SECONDS)
     .flatMap(g -> 
         // g is the stream of bytes for one connection 
          // accumulate the byte[] into one byte[]
-         .transform(Bytes.collect()) 
+         .compose(Bytes.collect()) 
          // if any error occurs then emit nothing for this connection
          // and complete. We don't emit an error because it would 
          // shut down all other connections as well. 
