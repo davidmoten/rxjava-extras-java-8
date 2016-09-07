@@ -272,7 +272,16 @@ public final class ObservableServerSocket {
         }
 
         private Future<Integer> read(ByteBuffer buffer) {
-            return this.read = socketChannel.read(buffer);
+            Future<Integer> future = socketChannel.read(buffer);
+            this.read = future;
+            // protect against race condition:
+            // if just before `socketChannel.read` the emitter gets cancelled
+            // (via unsubscribe) then we need to make sure that this future gets
+            // cancelled too
+            if (done) {
+                future.cancel(true);
+            }
+            return future;
         }
     }
 
