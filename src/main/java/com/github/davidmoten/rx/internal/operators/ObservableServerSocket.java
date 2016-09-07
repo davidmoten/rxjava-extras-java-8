@@ -9,6 +9,7 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -214,6 +215,7 @@ public final class ObservableServerSocket {
         private final long timeoutMs;
 
         private volatile boolean done;
+        private volatile Future<Integer> read;
 
         MyEmitter(AsynchronousSocketChannel socketChannel, int bufferSize, long timeoutMs) {
             this.socketChannel = socketChannel;
@@ -225,16 +227,17 @@ public final class ObservableServerSocket {
         public void call(AsyncEmitter<byte[]> emitter) {
             emitter.setCancellation(() -> {
                 done = true;
-                // pull the plug on a blocking read
-                socketChannel.close();
+                // pull the plug on a blocking read by cancelling the associated
+                // future
+                read.cancel(true);
             });
 
             // Allocate a byte buffer to read from the client
             ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
             try {
                 int bytesRead;
-                while (!done && (bytesRead = socketChannel.read(buffer).get(timeoutMs,
-                        TimeUnit.MILLISECONDS)) != -1) {
+                while (!done
+                        && (bytesRead = read(buffer).get(timeoutMs, TimeUnit.MILLISECONDS)) != -1) {
                     // check the value of done again because the read
                     // may have taken some time (waiting for timeout)
                     if (done) {
@@ -261,6 +264,11 @@ public final class ObservableServerSocket {
                 emitter.onError(e);
             }
 
+        }
+
+        private Future<Integer> read(ByteBuffer buffer) {
+            this.read = socketChannel.read(buffer);
+            return read;
         }
     }
 
