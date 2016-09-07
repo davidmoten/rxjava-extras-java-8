@@ -108,13 +108,6 @@ public final class ObservableServerSocket {
             static State create(boolean canAcceptFromRequest, long requested) {
                 return new State(canAcceptFromRequest, requested);
             }
-
-            @Override
-            public String toString() {
-                return "State [canAcceptFromRequest=" + canAcceptFromRequest + ", requested="
-                        + requested + "]";
-            }
-
         }
 
         private final AtomicReference<State> state = new AtomicReference<State>(new State(true, 0));
@@ -124,10 +117,20 @@ public final class ObservableServerSocket {
             if (n <= 0)
                 return;
 
+            // The way to initiate the processing of socket connections is to
+            // call serverSocketChannel.accept once, then the accepted pattern
+            // is to call serverSocketChannel.accept again in the completed()
+            // method of the CompletionHandler. Calling `accept` outside of this
+            // pattern risks provoking an `AcceptPendingException`. However , if
+            // there are insufficient requests of the parent the completed()
+            // method will not call `accept` and the responsibility for calling
+            // `accept` fals to the `request` method (just like on startup).
+
             // use CAS loop to safely update state
             while (true) {
                 State s = state.get();
                 long r = s.requested + n;
+                // check for overflow
                 if (r < 0) {
                     r = Long.MAX_VALUE;
                 }

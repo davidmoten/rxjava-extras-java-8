@@ -15,15 +15,16 @@ public final class IO {
         // prevent instantiation
     }
 
-    public static Observable<Observable<byte[]>> serverSocket(int port, long timeout,
-            TimeUnit unit, int bufferSize, BackpressureMode backpressureMode, Func0<AsynchronousChannelGroup> group) {
-        return ObservableServerSocket.create(port, timeout, unit, bufferSize, backpressureMode, group);
+    public static Observable<Observable<byte[]>> serverSocket(int port, long timeout, TimeUnit unit,
+            int bufferSize, BackpressureMode backpressureMode,
+            Func0<AsynchronousChannelGroup> group) {
+        return serverSocket(port, timeout, unit, bufferSize, backpressureMode, group);
     }
-    
-    public static Observable<Observable<byte[]>> serverSocket(int port, long timeout,
-            TimeUnit unit, int bufferSize, BackpressureMode backpressureMode) {
-        return ObservableServerSocket.create(port, timeout, unit, bufferSize, backpressureMode, null);
+
+    public static Observable<Observable<byte[]>> serverSocket(int port, long timeout, TimeUnit unit,
+            int bufferSize, BackpressureMode backpressureMode) {
+        return ObservableServerSocket.create(port, timeout, unit, bufferSize, backpressureMode,
+                null);
     }
-    
 
 }
