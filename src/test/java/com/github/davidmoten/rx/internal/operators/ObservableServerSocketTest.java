@@ -102,6 +102,7 @@ public final class ObservableServerSocketTest {
 
             @Override
             public void setProducer(Producer p) {
+                p.request(0);
                 p.request(-1);
             }
 
