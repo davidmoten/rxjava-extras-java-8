@@ -277,7 +277,7 @@ public final class ObservableServerSocket {
             // protect against race condition:
             // if just before `socketChannel.read` the emitter gets cancelled
             // (via unsubscribe) then we need to make sure that this future gets
-            // cancelled too
+            // cancelled too (we would otherwise have to wait for timeout)
             if (done) {
                 future.cancel(true);
             }
