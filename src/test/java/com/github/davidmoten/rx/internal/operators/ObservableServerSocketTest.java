@@ -150,7 +150,8 @@ public final class ObservableServerSocketTest {
                 // sender
                 Observable.range(1, numMessages).flatMap(n -> {
                     return Observable.defer(() -> {
-                        System.out.println(Thread.currentThread().getName() + " - writing message");
+                        // System.out.println(Thread.currentThread().getName() +
+                        // " - writing message");
                         String id = UUID.randomUUID().toString();
                         StringBuilder s = new StringBuilder();
                         for (int i = 0; i < messageBlocks; i++) {
