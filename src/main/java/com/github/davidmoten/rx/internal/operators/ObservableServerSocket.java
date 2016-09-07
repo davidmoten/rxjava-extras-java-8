@@ -227,7 +227,6 @@ public final class ObservableServerSocket {
                 done = true;
                 // pull the plug on a blocking read
                 socketChannel.close();
-                System.out.println("closed socket channel");
             });
 
             // Allocate a byte buffer to read from the client
