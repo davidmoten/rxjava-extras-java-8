@@ -235,7 +235,7 @@ public final class ObservableServerSocket {
                 read.cancel(true);
 
                 try {
-                    // without this we can run out of file descriptors
+                    // this helps in not running out of sockets
                     socketChannel.close();
                 } catch (IOException e) {
                     throw new RuntimeException(e);
