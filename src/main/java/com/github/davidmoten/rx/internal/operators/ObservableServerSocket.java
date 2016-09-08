@@ -189,25 +189,15 @@ public final class ObservableServerSocket {
         @Override
         public void completed(AsynchronousSocketChannel socketChannel, Void attachment) {
 
-            try {
-                checkRequests();
+            checkRequests();
 
-                MyEmitter emitter = new MyEmitter(socketChannel, bufferSize, timeoutMs);
+            MyEmitter emitter = new MyEmitter(socketChannel, bufferSize, timeoutMs);
 
-                Observable<byte[]> obs = Observable.fromEmitter(emitter, backpressureMode);
+            Observable<byte[]> obs = Observable.fromEmitter(emitter, backpressureMode);
 
-                if (!subscriber.isUnsubscribed()) {
-                    // note to get here there must have been a request
-                    subscriber.onNext(obs);
-                }
-            } finally {
-                try {
-                    // without this we can run out of file descriptors
-                    socketChannel.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    throw new RuntimeException(e);
-                }
+            if (!subscriber.isUnsubscribed()) {
+                // note to get here there must have been a request
+                subscriber.onNext(obs);
             }
         }
 
@@ -243,6 +233,13 @@ public final class ObservableServerSocket {
                 // pull the plug on a blocking read by cancelling the associated
                 // future
                 read.cancel(true);
+
+                try {
+                    // without this we can run out of file descriptors
+                    socketChannel.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             });
 
             // Allocate a byte buffer to read from the client
