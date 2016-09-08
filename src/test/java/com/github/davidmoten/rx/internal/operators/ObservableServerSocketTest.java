@@ -264,7 +264,7 @@ public final class ObservableServerSocketTest {
         // scheduler for making client connections
         Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(10));
         AtomicBoolean errored = new AtomicBoolean(false);
-        for (int k = 0; k < 10; k++) {
+        for (int k = 0; k < 1; k++) {
             System.out.println("loop " + k);
             TestSubscriber<String> ts = TestSubscriber.create();
             AtomicInteger connections = new AtomicInteger();
@@ -302,18 +302,22 @@ public final class ObservableServerSocketTest {
                         }
                         messages.add(s.toString());
                         try (Socket socket = new Socket("localhost", PORT)) {
+                            // allow reuse so we don't run out of sockets
+                            socket.setReuseAddress(true);
                             socket.setSoTimeout(5000);
                             int count = openSockets.incrementAndGet();
-                            System.out.println("open sockets=" + count + ", connections = "
-                                    + connections.get());
+                            // System.out.println("open sockets=" + count + ",
+                            // connections = "
+                            // + connections.get());
                             OutputStream out = socket.getOutputStream();
                             for (int i = 0; i < messageBlocks; i++) {
                                 out.write(id.getBytes(StandardCharsets.UTF_8));
                             }
                             out.close();
                             count = openSockets.decrementAndGet();
-                            System.out.println("open sockets=" + count + ", connections = "
-                                    + connections.get());
+                            // System.out.println("open sockets=" + count + ",
+                            // connections = "
+                            // + connections.get());
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
