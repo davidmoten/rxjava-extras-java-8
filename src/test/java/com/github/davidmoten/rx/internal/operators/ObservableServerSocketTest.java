@@ -317,8 +317,8 @@ public final class ObservableServerSocketTest {
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
-                        return Observable.just(1).timeout(5, TimeUnit.SECONDS);
-                    }).subscribeOn(scheduler);
+                        return Observable.just(1);
+                    }).timeout(5, TimeUnit.SECONDS).subscribeOn(scheduler);
                 }) //
                         .doOnError(Actions.printStackTrace1()) //
                         .subscribe(ts2);
