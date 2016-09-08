@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
@@ -33,6 +34,7 @@ import com.github.davidmoten.rx.Actions;
 import com.github.davidmoten.rx.Bytes;
 import com.github.davidmoten.rx.Checked;
 import com.github.davidmoten.rx.IO;
+import com.github.davidmoten.rx.RetryWhen;
 
 import rx.AsyncEmitter.BackpressureMode;
 import rx.Observable;
@@ -259,19 +261,26 @@ public final class ObservableServerSocketTest {
     }
 
     private void testAsync(Func0<AsynchronousChannelGroup> group) throws InterruptedException {
-        Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(50));
+        // scheduler for making client connections
+        Scheduler scheduler = Schedulers.from(Executors.newFixedThreadPool(10));
         AtomicBoolean errored = new AtomicBoolean(false);
-        for (int k = 0; k < 1; k++) {
+        for (int k = 0; k < 10; k++) {
+            System.out.println("loop " + k);
             TestSubscriber<String> ts = TestSubscriber.create();
+            AtomicInteger connections = new AtomicInteger();
             try {
                 int bufferSize = 4;
                 IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER,
                         group) //
                         .flatMap(g -> g //
+                                .doOnSubscribe(Actions.increment0(connections)) //
                                 .compose(Bytes.collect()) //
-                                .onErrorResumeNext(Observable.empty()), 1) //
+                                .doOnError(t -> Actions.printStackTrace1()) //
+                                .retryWhen(RetryWhen.delay(1, TimeUnit.SECONDS).build()) //
+                                , 1) //
                         .map(bytes -> new String(bytes, StandardCharsets.UTF_8)) //
-                        .doOnError(e -> e.printStackTrace()) //
+                        .doOnNext(Actions.decrement1(connections)) //
+                        .doOnError(Actions.printStackTrace1()) //
                         .doOnError(Actions.setToTrue1(errored)) //
                         .subscribe(ts);
                 TestSubscriber<Object> ts2 = TestSubscriber.create();
@@ -280,6 +289,7 @@ public final class ObservableServerSocketTest {
                 int messageBlocks = 10;
                 int numMessages = 1000;
 
+                AtomicInteger openSockets = new AtomicInteger(0);
                 // sender
                 Observable.range(1, numMessages).flatMap(n -> {
                     return Observable.defer(() -> {
@@ -291,20 +301,27 @@ public final class ObservableServerSocketTest {
                             s.append(id);
                         }
                         messages.add(s.toString());
-                        try {
-                            Socket socket = new Socket("localhost", PORT);
+                        try (Socket socket = new Socket("localhost", PORT)) {
+                            socket.setSoTimeout(5000);
+                            int count = openSockets.incrementAndGet();
+                            System.out.println("open sockets=" + count + ", connections = "
+                                    + connections.get());
                             OutputStream out = socket.getOutputStream();
                             for (int i = 0; i < messageBlocks; i++) {
                                 out.write(id.getBytes(StandardCharsets.UTF_8));
                             }
                             out.close();
-                            socket.close();
+                            count = openSockets.decrementAndGet();
+                            System.out.println("open sockets=" + count + ", connections = "
+                                    + connections.get());
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
-                        return Observable.just(1);
+                        return Observable.just(1).timeout(5, TimeUnit.SECONDS);
                     }).subscribeOn(scheduler);
-                } , 1).subscribe(ts2);
+                }) //
+                        .doOnError(Actions.printStackTrace1()) //
+                        .subscribe(ts2);
                 ts2.awaitTerminalEvent();
                 ts2.assertCompleted();
                 // allow server to complete processing

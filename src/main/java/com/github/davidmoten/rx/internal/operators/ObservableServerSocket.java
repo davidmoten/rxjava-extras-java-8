@@ -40,7 +40,7 @@ public final class ObservableServerSocket {
                         backpressureMode));
         // Observable.using handles closing of stuff on termination or
         // unsubscription
-        return Observable.using(serverSocketFactory, serverSocketObservable, closer());
+        return Observable.using(serverSocketFactory, serverSocketObservable, closer(), true);
     }
 
     private static Func0<AsynchronousServerSocketChannel> createServerSocketFactory(final int port,
