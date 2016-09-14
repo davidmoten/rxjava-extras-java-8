@@ -36,7 +36,6 @@ import com.github.davidmoten.rx.Checked;
 import com.github.davidmoten.rx.IO;
 import com.github.davidmoten.rx.RetryWhen;
 
-import rx.AsyncEmitter.BackpressureMode;
 import rx.Observable;
 import rx.Producer;
 import rx.Scheduler;
@@ -46,7 +45,7 @@ import rx.observers.TestSubscriber;
 import rx.plugins.RxJavaHooks;
 import rx.schedulers.Schedulers;
 
-public final class ObservableServerSocketTest {
+public final class ObservableServerSocketBasicTest {
 
     private static final int PORT = 12345;
     private static final String TEXT = "hello there";
@@ -86,7 +85,7 @@ public final class ObservableServerSocketTest {
 
         TestSubscriber<Object> ts = TestSubscriber.create();
         try (ServerSocket socket = new ServerSocket(PORT)) {
-            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 5, BackpressureMode.BUFFER).subscribe(ts);
+            IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, 5).subscribe(ts);
             ts.assertNoValues();
             ts.assertNotCompleted();
             ts.assertTerminalEvent();
@@ -126,8 +125,7 @@ public final class ObservableServerSocketTest {
             }
         };
         try {
-            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 5, BackpressureMode.BUFFER)
-                    .unsafeSubscribe(s);
+            IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, 5).unsafeSubscribe(s);
             Throwable ex = exception.get();
             assertNotNull(ex);
             assertTrue(ex instanceof IllegalArgumentException);
@@ -186,7 +184,7 @@ public final class ObservableServerSocketTest {
         AtomicReference<byte[]> result = new AtomicReference<byte[]>();
         try {
             int bufferSize = 4;
-            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER) //
+            IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, bufferSize) //
                     .flatMap(g -> g //
                             .first() //
                             .compose(Bytes.collect()) //
@@ -216,7 +214,7 @@ public final class ObservableServerSocketTest {
         AtomicReference<byte[]> result = new AtomicReference<byte[]>();
         try {
             int bufferSize = 4;
-            IO.serverSocket(PORT, 100, TimeUnit.HOURS, bufferSize, BackpressureMode.BUFFER) //
+            IO.serverSocketBasic(PORT, 100, TimeUnit.HOURS, bufferSize) //
                     .flatMap(g -> g //
                             .first() //
                             .compose(Bytes.collect()) //
@@ -270,8 +268,7 @@ public final class ObservableServerSocketTest {
             AtomicInteger connections = new AtomicInteger();
             try {
                 int bufferSize = 4;
-                IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER,
-                        group) //
+                IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, bufferSize) //
                         .flatMap(g -> g //
                                 .doOnSubscribe(Actions.increment0(connections)) //
                                 .compose(Bytes.collect()) //
@@ -343,7 +340,7 @@ public final class ObservableServerSocketTest {
         TestSubscriber<Object> ts = TestSubscriber.create();
         AtomicReference<byte[]> result = new AtomicReference<byte[]>();
         try {
-            IO.serverSocket(PORT, 10, TimeUnit.SECONDS, bufferSize, BackpressureMode.BUFFER) //
+            IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, bufferSize) //
                     .flatMap(g -> g //
                             .compose(Bytes.collect()) //
                             .doOnNext(Actions.setAtomic(result)) //
@@ -366,7 +363,7 @@ public final class ObservableServerSocketTest {
 
     public static void main(String[] args) throws InterruptedException {
         TestSubscriber<Object> ts = TestSubscriber.create();
-        IO.serverSocket(PORT, 10, TimeUnit.SECONDS, 8, BackpressureMode.BUFFER) //
+        IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, 8) //
                 .flatMap(g -> g //
                         .compose(Bytes.collect()) //
                         .doOnNext(bytes -> System.out.println(

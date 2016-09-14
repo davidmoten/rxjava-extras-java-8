@@ -23,6 +23,7 @@ import rx.Subscriber;
 import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func1;
+import rx.plugins.RxJavaHooks;
 
 public final class ObservableServerSocket {
 
@@ -232,15 +233,24 @@ public final class ObservableServerSocket {
                 done = true;
                 // pull the plug on a blocking read by cancelling the associated
                 // future
-                read.cancel(true);
+                if (read != null) {
+                    read.cancel(true);
+                }
 
                 try {
                     // this helps in not running out of sockets
                     socketChannel.close();
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    RxJavaHooks.onError(e);
                 }
             });
+
+            try {
+                socketChannel.shutdownInput();
+                return;
+            } catch (IOException e1) {
+                //
+            }
 
             // Allocate a byte buffer to read from the client
             ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
