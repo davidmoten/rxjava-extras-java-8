@@ -55,7 +55,6 @@ public final class ObservableServerSocketBasic {
                 while (true) {
                     try {
                         socket = serverSocket.accept();
-                        System.out.println("accepted socket " + socket);
                         observer.onNext(createSocketObservable(socket, timeoutMs, bufferSize));
                         break;
                     } catch (SocketTimeoutException e) {

@@ -2,7 +2,6 @@ package com.github.davidmoten.rx.internal.operators;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.Closeable;
@@ -37,9 +36,7 @@ import com.github.davidmoten.rx.IO;
 import com.github.davidmoten.rx.RetryWhen;
 
 import rx.Observable;
-import rx.Producer;
 import rx.Scheduler;
-import rx.Subscriber;
 import rx.functions.Func0;
 import rx.observers.TestSubscriber;
 import rx.plugins.RxJavaHooks;
@@ -91,48 +88,6 @@ public final class ObservableServerSocketBasicTest {
             ts.assertTerminalEvent();
             assertTrue(ts.getOnErrorEvents().get(0).getCause() instanceof BindException);
         }
-    }
-
-    @Test
-    public void negativeRequestEmitsError() throws IOException {
-        AtomicReference<Throwable> exception = new AtomicReference<>();
-        Subscriber<Object> s = new Subscriber<Object>() {
-
-            @Override
-            public void onStart() {
-                request(0);
-            }
-
-            @Override
-            public void setProducer(Producer p) {
-                p.request(0);
-                p.request(-1);
-            }
-
-            @Override
-            public void onCompleted() {
-
-            }
-
-            @Override
-            public void onError(Throwable e) {
-                exception.set(e);
-            }
-
-            @Override
-            public void onNext(Object t) {
-
-            }
-        };
-        try {
-            IO.serverSocketBasic(PORT, 10, TimeUnit.SECONDS, 5).unsafeSubscribe(s);
-            Throwable ex = exception.get();
-            assertNotNull(ex);
-            assertTrue(ex instanceof IllegalArgumentException);
-        } finally {
-            s.unsubscribe();
-        }
-
     }
 
     @Test
