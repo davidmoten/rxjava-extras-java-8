@@ -191,8 +191,11 @@ public final class ObservableServerSocketBasicTest {
                             .doOnNext(Actions.setAtomic(result)) //
                             .doOnNext(bytes -> System.out.println(
                                     Thread.currentThread().getName() + ": " + new String(bytes))) //
-                            .onErrorResumeNext(Observable.empty()))
+                            .onErrorResumeNext(Observable.empty()) //
+                            .subscribeOn(Schedulers.io())) //
+                    .subscribeOn(Schedulers.io()) //
                     .subscribe(ts);
+            Thread.sleep(300);
             Socket socket = new Socket("localhost", PORT);
             OutputStream out = socket.getOutputStream();
             out.write("12345678901234567890".getBytes());
