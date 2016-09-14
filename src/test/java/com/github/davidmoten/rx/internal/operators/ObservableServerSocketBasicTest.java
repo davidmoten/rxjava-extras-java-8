@@ -229,6 +229,7 @@ public final class ObservableServerSocketBasicTest {
                             .subscribeOn(Schedulers.io()))
                     .subscribeOn(Schedulers.io()) //
                     .subscribe(ts);
+            Thread.sleep(300);
             @SuppressWarnings("resource")
             Socket socket = new Socket("localhost", PORT);
             OutputStream out = socket.getOutputStream();
