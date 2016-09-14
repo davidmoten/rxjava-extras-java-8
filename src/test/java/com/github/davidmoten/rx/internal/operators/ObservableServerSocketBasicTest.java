@@ -222,7 +222,9 @@ public final class ObservableServerSocketBasicTest {
                             .map(bytes -> new String(bytes, StandardCharsets.UTF_8)) //
                             .doOnNext(s -> System.out
                                     .println(Thread.currentThread().getName() + ": " + s)) //
-                            .onErrorResumeNext(Observable.empty()))
+                            .onErrorResumeNext(Observable.empty()) //
+                            .subscribeOn(Schedulers.io()))
+                    .subscribeOn(Schedulers.io()) //
                     .subscribe(ts);
             @SuppressWarnings("resource")
             Socket socket = new Socket("localhost", PORT);
@@ -273,12 +275,14 @@ public final class ObservableServerSocketBasicTest {
                                 .doOnSubscribe(Actions.increment0(connections)) //
                                 .compose(Bytes.collect()) //
                                 .doOnError(t -> Actions.printStackTrace1()) //
+                                .subscribeOn(Schedulers.io()) //
                                 .retryWhen(RetryWhen.delay(1, TimeUnit.SECONDS).build()) //
                                 , 1) //
                         .map(bytes -> new String(bytes, StandardCharsets.UTF_8)) //
                         .doOnNext(Actions.decrement1(connections)) //
                         .doOnError(Actions.printStackTrace1()) //
                         .doOnError(Actions.setToTrue1(errored)) //
+                        .subscribeOn(Schedulers.io()) //
                         .subscribe(ts);
                 TestSubscriber<Object> ts2 = TestSubscriber.create();
                 Set<String> messages = new ConcurrentSkipListSet<>();
@@ -346,8 +350,11 @@ public final class ObservableServerSocketBasicTest {
                             .doOnNext(Actions.setAtomic(result)) //
                             .doOnNext(bytes -> System.out.println(
                                     Thread.currentThread().getName() + ": " + new String(bytes))) //
-                            .onErrorResumeNext(Observable.empty()))
+                            .onErrorResumeNext(Observable.empty()) //
+                            .subscribeOn(Schedulers.io()))
+                    .subscribeOn(Schedulers.io()) //
                     .subscribe(ts);
+            Thread.sleep(300);
             Socket socket = new Socket("localhost", PORT);
             OutputStream out = socket.getOutputStream();
             out.write(text.getBytes());
