@@ -20,8 +20,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <rxjava.version>1.1.10</rxjava.version>
-        <rxjava.extras.version>0.7.9.13</rxjava.extras.version>
+        <rxjava.version>1.2.0</rxjava.version>
+        <rxjava.extras.version>0.7.9.23-SNAPSHOT</rxjava.extras.version>
 
         <jmh.version>1.11.1</jmh.version>
         <exec.version>1.4.0</exec.version>
@@ -153,7 +153,7 @@
         <plugins>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.3</version>
+                <version>3.5.1</version>
                 <configuration>
                     <source>${maven.compiler.target}</source>
                     <target>${maven.compiler.target}</target>
